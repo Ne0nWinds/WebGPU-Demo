@@ -1,4 +1,4 @@
-"use strict";
+const { mat4, vec4 } = wgpuMatrix;
 
 function assert(expr, assertMessage) {
     if (!(expr)) {
@@ -32,6 +32,42 @@ function createDepthTexture(device) {
     return depthTexture;
 };
 
+function tesselatePositions(amount) {
+    const resolution = amount + 1;
+    const n = Math.imul(resolution, resolution);
+    const positions = new Float32Array(n * 3);
+    const indices = new Uint16Array(amount * amount * 6);
+
+    const increment = 2.0 / amount;
+    for (let y = 0; y < (amount + 1); ++y) {
+        for (let x = 0; x < (amount + 1); ++x) {
+            const positionIndex = Math.imul(y * resolution + x, 3);
+            positions[positionIndex + 0] = x * increment - 1.0;
+            positions[positionIndex + 1] = 0.0;
+            positions[positionIndex + 2] = y * increment - 1.0;
+        }
+    }
+
+    for (let y = 0; y < amount; ++y) {
+        for (let x = 0; x < amount; ++x) {
+            const baseIndex = y * resolution + x;
+            const arrayIndex = (y * 6 * amount) + (x * 6);
+
+            const p0 = baseIndex;
+            const p1 = baseIndex + 1;
+            const p2 = p1 + resolution;
+            const p3 = p0 + resolution;
+            indices[arrayIndex + 0] = p0;
+            indices[arrayIndex + 1] = p1;
+            indices[arrayIndex + 2] = p2;
+            indices[arrayIndex + 3] = p0;
+            indices[arrayIndex + 4] = p2;
+            indices[arrayIndex + 5] = p3;
+        }
+    }
+    return [positions, indices];
+}
+
 void async function init() {
     const gpu = navigator.gpu;
     assert(gpu, "WebGPU is not supported on this browser!");
@@ -59,18 +95,6 @@ void async function init() {
     let colorTexture = ctx.getCurrentTexture();
     let colorTextureView = colorTexture.createView();
 
-    const positions = new Float32Array([
-        0.5, -0.5, 0.0,
-        -0.5, -0.5, 0.0,
-        0.0, 0.5, 0.0
-    ]);
-    const colors = new Float32Array([
-        1.0, 0.0, 0.0,
-        0.0, 1.0, 0.0,
-        0.0, 0.0, 1.0,
-    ]);
-    const indices = new Uint16Array([0, 1, 2]);
-
     const createBuffer = (array, usage) => {
         let description = {
             size: (array.byteLength + 3) & ~3,
@@ -89,8 +113,10 @@ void async function init() {
         return buffer;
     };
 
+    const tesselationAmount = 10;
+    const [positions, indices] = tesselatePositions(tesselationAmount);
+
     const positionBuffer = createBuffer(positions, GPUBufferUsage.VERTEX);
-    const colorBuffer = createBuffer(colors, GPUBufferUsage.VERTEX);
     const indexBuffer = createBuffer(indices, GPUBufferUsage.INDEX);
 
     const fetchShaderCode = async (path) => {
@@ -103,9 +129,8 @@ void async function init() {
     const vertexModule = device.createShaderModule(shaderDescription);
     const fragmentModule = device.createShaderModule(shaderDescription);
 
-    const uniformData = new Float32Array([
-        1.0, 1.0, 0.0, 0.0
-    ]);
+
+    const uniformData = new Float32Array(16 + 4);
     const uniformBuffer = createBuffer(uniformData, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
 
     const uniformBindGroupLayout = device.createBindGroupLayout({
@@ -146,11 +171,6 @@ void async function init() {
         arrayStride: 4 * 3,
         stepMode: "vertex"
     };
-    const colorBufferDesc = {
-        attributes: [colorAttribDesc],
-        arrayStride: 4 * 3,
-        stepMode: "vertex"
-    };
 
     // Depth
     const depthStencil = {
@@ -167,7 +187,7 @@ void async function init() {
     const vertex = {
         module: vertexModule,
         entryPoint: "vertex",
-        buffers: [positionBufferDesc, colorBufferDesc]
+        buffers: [positionBufferDesc]
     };
 
     const colorState = {
@@ -226,10 +246,9 @@ void async function init() {
         passEncoder.setViewport(0, 0, canvas.width, canvas.height, 0, 1);
         passEncoder.setScissorRect(0, 0, canvas.width, canvas.height);
         passEncoder.setVertexBuffer(0, positionBuffer);
-        passEncoder.setVertexBuffer(1, colorBuffer);
         passEncoder.setBindGroup(0, uniformBindGroup);
         passEncoder.setIndexBuffer(indexBuffer, "uint16");
-        passEncoder.drawIndexed(3);
+        passEncoder.drawIndexed(tesselationAmount * tesselationAmount * 6);
         passEncoder.end();
 
         queue.submit([commandEncoder.finish()]);
@@ -237,7 +256,19 @@ void async function init() {
 
     let animationID = 0;
     const render = (t) => {
-        uniformData.fill(t);
+        const c = Math.cos(t / 4096) * 2.0;
+        const s = Math.sin(t / 4096) * 2.0;
+
+        const lookAt = mat4.lookAt([s, 1.5, c], [0, 0, 0], [0, 1, 0]);
+        const perspective = mat4.perspective(90 * (Math.PI / 180.0), canvas.width / canvas.height, 0.1, 1024.0);
+        const m = mat4.mul(perspective, lookAt);
+
+        const v = vec4.create();
+        v[0] = t;
+
+        uniformData.set(m, 0);
+        uniformData.set(v, 16);
+
         device.queue.writeBuffer(uniformBuffer, 0, uniformData);
 
         colorTexture = ctx.getCurrentTexture();
