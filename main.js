@@ -1,30 +1,39 @@
 "use strict";
 
-function assert(expr) {
+function assert(expr, assertMessage) {
     if (!(expr)) {
+        assertMessage = (assertMessage != undefined) ? assertMessage : "An error occurred!";
         console.trace();
-        throw "failed assert";
+
+
+        const canvasElement = document.getElementById("canvas");
+        canvasElement.style.display = "none";
+
+        const errorElement = document.getElementById("error");
+        errorElement.style.display = "block";
+        errorElement.innerText = assertMessage;
+
+        throw assertMessage;
     }
 }
 
 const canvas = document.getElementById("canvas");
-canvas.width = 640;
-canvas.height = 640;
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
 void async function init() {
     const gpu = navigator.gpu;
-    if (!gpu) {
-        console.log("WebGPU is not supported on this browser!")
-        return;
-    }
-
-    const adapter = await gpu.requestAdapter();
-    assert(!!adapter);
-    const device = await adapter.requestDevice();
-    assert(!!device);
-    const queue = device.queue;
+    assert(gpu, "WebGPU is not supported on this browser!");
 
     const ctx = canvas.getContext("webgpu");
+    assert(ctx, "WebGPU is not supported on this browser!");
+
+    const adapter = await gpu.requestAdapter();
+    assert(!!adapter, "Unable to request GPU adapter");
+    const device = await adapter.requestDevice();
+    assert(!!device, "Unable to initialize GPU Device");
+    const queue = device.queue;
+
     const config = {
         device: device,
         format: "bgra8unorm",

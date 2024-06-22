@@ -20,7 +20,7 @@ fn vertex(
     vs_out.nds_position = vec4<f32>(in_pos, 1.0);
 
     var t: f32 = sin(uniforms.color.x / 512.0) * 0.5 + 0.5;
-    vs_out.color = in_color * t;
+    vs_out.color = in_color;
     return vs_out;
 }
 
