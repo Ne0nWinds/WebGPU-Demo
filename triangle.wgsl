@@ -69,7 +69,6 @@ fn vertex(
     // noise2 = 0.0;
 
     var height = fbm(seed + 8.1, 10, 0.45, 2.2) * 1.78;
-    // var height = noise(seed);
     pos.y = height;
 
     vs_out.position = uniforms.modelViewProjectionMatrix * vec4<f32>(pos, 1.0);
@@ -78,12 +77,15 @@ fn vertex(
     var green = vec3<f32>(0.4176, 0.6765, 0.351);
     var darkgreen = vec3<f32>(50.0 / 255.0, 107.0 / 255.0, 50.0 / 255.0);
     var grey = vec3<f32>(50.0 / 255.0);
+    var black = vec3<f32>(0.0);
 
     var outputColor = mix(white, green, smoothstep(1.65, 1.18, height));
     outputColor = mix(outputColor, darkgreen, smoothstep(1.35, 0.9, height));
 
     var rocknoise = mix(0.0, fbm(seed + 41.92, 10, 0.45, 2.1), 1.78 - height);
     outputColor = mix(outputColor, grey, rocknoise);
+
+    outputColor = mix(outputColor, black, smoothstep(0.0, 3.75, max(0.0, length(vs_out.position) - 4.0)));
 
     vs_out.color = vec3<f32>(outputColor);
     return vs_out;
