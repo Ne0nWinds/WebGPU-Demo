@@ -32,19 +32,22 @@ function createDepthTexture(device) {
     return depthTexture;
 };
 
-function tesselatePositions(amount) {
+function tesselatePositions(amount, scale) {
+    if (!scale) scale = 2.0;
+    const halfScale = scale / 2.0;
+
     const resolution = amount + 1;
     const n = Math.imul(resolution, resolution);
     const positions = new Float32Array(n * 3);
     const indices = new Uint16Array(amount * amount * 6);
 
-    const increment = 2.0 / amount;
+    const increment = scale / amount;
     for (let y = 0; y < (amount + 1); ++y) {
         for (let x = 0; x < (amount + 1); ++x) {
             const positionIndex = Math.imul(y * resolution + x, 3);
-            positions[positionIndex + 0] = x * increment - 1.0;
+            positions[positionIndex + 0] = x * increment - halfScale;
             positions[positionIndex + 1] = 0.0;
-            positions[positionIndex + 2] = y * increment - 1.0;
+            positions[positionIndex + 2] = y * increment - halfScale;
         }
     }
 
@@ -113,8 +116,8 @@ void async function init() {
         return buffer;
     };
 
-    const tesselationAmount = 10;
-    const [positions, indices] = tesselatePositions(tesselationAmount);
+    const tesselationAmount = 212;
+    const [positions, indices] = tesselatePositions(tesselationAmount, 8.0);
 
     const positionBuffer = createBuffer(positions, GPUBufferUsage.VERTEX);
     const indexBuffer = createBuffer(indices, GPUBufferUsage.INDEX);
@@ -259,7 +262,7 @@ void async function init() {
         const c = Math.cos(t / 4096) * 2.0;
         const s = Math.sin(t / 4096) * 2.0;
 
-        const lookAt = mat4.lookAt([s, 1.5, c], [0, 0, 0], [0, 1, 0]);
+        const lookAt = mat4.lookAt([s, 1.75, c], [0, 0.0, 0], [0, 1, 0]);
         const perspective = mat4.perspective(90 * (Math.PI / 180.0), canvas.width / canvas.height, 0.1, 1024.0);
         const m = mat4.mul(perspective, lookAt);
 
