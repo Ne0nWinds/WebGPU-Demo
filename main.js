@@ -21,6 +21,17 @@ const canvas = document.getElementById("canvas");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
+function createDepthTexture(device) {
+    const depthTextureDescription = {
+        size: [canvas.width, canvas.height, 1],
+        dimension: "2d",
+        format: "depth24plus-stencil8",
+        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC
+    };
+    const depthTexture = device.createTexture(depthTextureDescription);
+    return depthTexture;
+};
+
 void async function init() {
     const gpu = navigator.gpu;
     assert(gpu, "WebGPU is not supported on this browser!");
@@ -42,15 +53,8 @@ void async function init() {
     };
 
     ctx.configure(config);
-
-    const depthTextureDescription = {
-        size: [canvas.width, canvas.clientHeight, 1],
-        dimension: "2d",
-        format: "depth24plus-stencil8",
-        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC
-    };
-    const depthTexture = device.createTexture(depthTextureDescription);
-    const depthTextureView = depthTexture.createView();
+    let depthTexture = createDepthTexture(device);
+    let depthTextureView = depthTexture.createView();
 
     let colorTexture = ctx.getCurrentTexture();
     let colorTextureView = colorTexture.createView();
@@ -231,9 +235,9 @@ void async function init() {
         queue.submit([commandEncoder.finish()]);
     };
 
+    let animationID = 0;
     const render = (t) => {
         uniformData.fill(t);
-        console.log(t);
         device.queue.writeBuffer(uniformBuffer, 0, uniformData);
 
         colorTexture = ctx.getCurrentTexture();
@@ -241,8 +245,21 @@ void async function init() {
 
         encodeCommands();
 
-        requestAnimationFrame(render);
+        animationID = requestAnimationFrame(render);
     };
 
-    requestAnimationFrame(render);
+    animationID = requestAnimationFrame(render);
+
+    window.onresize = (e) => {
+        cancelAnimationFrame(animationID);
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        depthTexture.destroy();
+        depthTexture = createDepthTexture(device);
+        depthTextureView = depthTexture.createView();
+
+        requestAnimationFrame(render);
+    };
 }();
